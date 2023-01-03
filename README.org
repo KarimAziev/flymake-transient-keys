@@ -1,0 +1,33 @@
+* flymake-transient-keys
+
+Flymake backend to check transient prefixes for duplicated keys.
+
+** Requirements
++ Emacs >= 26.1
++ flymake
+
+** Installation
+
+*** Manual
+
+Download the source code and put it wherever you like and add the directory to the load path:
+
+#+begin_src elisp :eval no
+
+(add-to-list 'load-path "/path/to/flymake-transient-keys")
+(require 'flymake-transient-keys)
+(add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys)
+#+end_src
+
+*** With use-package and straight
+
+#+begin_src elisp :eval no
+
+(use-package flymake-transient-keys
+  :straight (flymake-transient-keys
+             :repo "KarimAziev/flymake-transient-keys"
+             :type git
+             :host github)
+  :hook (emacs-lisp-mode . flymake-transient-keys))
+
+#+end_src
