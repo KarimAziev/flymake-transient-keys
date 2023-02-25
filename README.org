@@ -1,6 +1,6 @@
 * flymake-transient-keys
 
-Flymake backend to check transient prefixes for duplicated keys.
+Flymake backend to check duplicated keys in =define-transient-prefix= forms.
 
 ** Requirements
 + Emacs >= 26.1
@@ -10,24 +10,40 @@ Flymake backend to check transient prefixes for duplicated keys.
 
 *** Manual
 
-Download the source code and put it wherever you like and add the directory to the load path:
+Download the source code and put it wherever you like, and add the directory to the load path:
 
 #+begin_src elisp :eval no
-
 (add-to-list 'load-path "/path/to/flymake-transient-keys")
 (require 'flymake-transient-keys)
-(add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys)
 #+end_src
 
 *** With use-package and straight
 
 #+begin_src elisp :eval no
-
 (use-package flymake-transient-keys
   :straight (flymake-transient-keys
              :repo "KarimAziev/flymake-transient-keys"
              :type git
-             :host github)
-  :hook (emacs-lisp-mode . flymake-transient-keys))
+             :host github))
+#+end_src
+** Usage
 
+*** M-x flymake-transient-keys RET
+
+To check all transient prefixes in the buffer.
+
+Instead of a command, you can also use a hook:
+
+#+begin_src emacs-lisp
+(add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys)
+#+end_src
+
+*** M-x flymake-transient-keys-current RET
+
+Limit checks to transient at the point.
+
+Instead of a command, you can also use a hook:
+
+#+begin_src emacs-lisp
+(add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys-current)
 #+end_src
