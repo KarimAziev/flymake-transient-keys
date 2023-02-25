@@ -25,17 +25,22 @@
 
 ;;; Commentary:
 
-;; Flymake backend to check transient prefixes for duplicated keys
+;; Flymake backends to check transient prefixes for duplicated keys.
+
+;; `flymake-transient-keys' - To check all transient prefixes in the buffer.
+
+;; (add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys)
+
+
+;; `flymake-transient-keys-current' - To check only transient prefix at point
+
+;; (add-hook 'emacs-lisp-mode-hook #'flymake-transient-keys-current)
+
 
 ;;; Code:
 
 
-(eval-when-compile
-  (require 'cl-lib))
-
-(require 'flymake)
-
-(declare-function flymake-diag-region "flymake")
+(declare-function flymake-start "flymake")
 (declare-function flymake-make-diagnostic "flymake")
 
 (defun flymake-transient-keys-move-with (fn &optional n)
@@ -150,16 +155,39 @@ Arguments BOUND, NOERROR, COUNT has the same meaning as `re-search-forward'."
                                         (if count
                                             (- count) -1)))
 
-(defun flymake-transient-keys-find-dups (lists)
+
+(defun flymake-transient-keys-find-dups-keys (lists)
   "Return filtered LISTS with duplicated keys."
+  (setq lists (mapcar #'car lists))
   (let ((dups)
-        (head)
-        (items))
-    (while (setq head (pop lists))
-      (let ((key (car head)))
-        (when (member key items)
-          (push head dups))
-        (push key items)))
+        (uniq-keys)
+        (key))
+    (while (setq key (pop lists))
+      (let ((common-pref))
+        (cond ((member key lists)
+               (setq dups (push key dups))
+               (setq lists (remove key lists)))
+              ((setq common-pref (unless (or (string-prefix-p "M-" key)
+                                             (string-prefix-p "C-" key))
+                                   (or (seq-filter
+                                        (apply-partially #'string-prefix-p
+                                                         key)
+                                        lists)
+                                       (seq-filter
+                                        (apply-partially #'string-prefix-p
+                                                         key)
+                                        uniq-keys))))
+               (when (or (string= key "M")
+                         (string= key "C"))
+                 (setq common-pref (seq-remove
+                                    (lambda (it)
+                                      (or (string-prefix-p "M-" it)
+                                          (string-prefix-p "C-" it)))
+                                    common-pref)))
+               (when common-pref
+                 (setq dups (nconc dups common-pref))
+                 (setq dups (push key dups))))
+              (t (push key uniq-keys)))))
     dups))
 
 (defun flymake-transient-keys-lint-vectors-to-list (vect &optional acc)
@@ -178,10 +206,7 @@ ACC is used for inner purposes."
 (defun flymake-transient-keys-parse-sexp (sexp)
   "Parse transient SEXP."
   (when (and
-         (listp sexp)
-         (car sexp)
-         (eq (car sexp) 'transient-define-prefix)
-         (car sexp)
+         (eq (car-safe sexp) 'transient-define-prefix)
          (symbolp (nth 1 sexp)))
     (let ((items (seq-take-while
                   #'vectorp
@@ -201,99 +226,75 @@ ACC is used for inner purposes."
   "Check current buffer for duplicate keys in transient prefixes."
   (save-excursion
     (goto-char (point-max))
-    (let ((problems)
-          (case-fold-search nil))
+    (let ((case-fold-search nil)
+          (problems))
       (while (flymake-transient-keys-lint-re-search-backward
               "\\_<\\(transient-define-prefix\\)\\_>"
               nil t 1)
-        (when-let* ((sexp (progn (ignore-errors
-                                   (backward-up-list 1))
-                                 (sexp-at-point)))
-                    (heads
-                     (flymake-transient-keys-find-dups
-                      (flymake-transient-keys-parse-sexp
-                       sexp)))
-                    (bounds (when (listp sexp)
-                              (bounds-of-thing-at-point 'sexp))))
-          (dolist (head heads)
-            (save-excursion
-              (let ((re (concat "\\_<\\("
-                                (regexp-quote (car head))
-                                "\\)\\_>"))
-                    (case-fold-search nil))
-                (while (re-search-forward re (cdr bounds) t 1)
-                  (let ((col (current-column))
-                        (line (line-number-at-pos)))
-                    (setq col (if (>= col (length (car head)))
-                                  (- col (length (car head)))
-                                col))
-                    (push `(,line ,col error "Duplicated key")
-                          problems))))))))
+        (ignore-errors (backward-up-list 1))
+        (when-let ((dups
+                    (flymake-transient-keys-check-transient-at-point)))
+          (setq problems (nconc problems
+                                dups))))
       problems)))
 
-
-
-
-(defun flymake-transient-keys--search-heads (heads limit)
-  "Search for HEADS until point LIMIT."
+(defun flymake-transient-keys--search-heads (keys limit)
+  "Search for KEYS from current point until LIMIT."
   (let ((problems))
-    (dolist (head heads)
+    (dolist (key keys)
       (save-excursion
-        (let ((re (concat "\\_<\\("
-                          (regexp-quote (car head))
-                          "\\)\\_>"))
-              (case-fold-search nil))
-          (while (re-search-forward re limit t 1)
-            (let ((col (current-column))
-                  (line (line-number-at-pos)))
-              (setq col (if (>= col (length (car head)))
-                            (- col (length (car head)))
-                          col))
-              (push `(,line ,col error "Duplicated key")
-                    problems))))))
+        (let ((re (if (member key '("M" "C"))
+                      (concat "[(]\"" (regexp-quote key) "[^-]")
+                    (concat "[(]\"" (regexp-quote key))))
+              (case-fold-search nil)
+              (found))
+          (while (setq found (re-search-forward re limit t 1))
+            (push (cons (- found (length key)) found) problems)))))
     problems))
+
+(defun flymake-transient-keys-check-transient-at-point ()
+  "Check current buffer for duplicate keys in transient prefixes."
+  (when-let* ((keys (flymake-transient-keys-find-dups-keys
+                     (flymake-transient-keys-parse-sexp
+                      (sexp-at-point))))
+              (end (save-excursion
+                     (forward-sexp 1)
+                     (point))))
+    (flymake-transient-keys--search-heads keys
+                                          end)))
 
 (defun flymake-transient-keys-check-current-transient ()
   "Check current buffer for duplicate keys in transient prefixes."
-  (save-excursion
-    (let ((result))
+  (let ((result))
+    (save-excursion
       (while (and (not
                    (setq result
-                         (when-let ((heads
-                                     (flymake-transient-keys-find-dups
-                                      (flymake-transient-keys-parse-sexp
-                                       (sexp-at-point)))))
-                           heads)))
-                  (flymake-transient-keys-move-with 'backward-up-list)))
-      (when result
-        (setq result (flymake-transient-keys--search-heads
-                      result (cdr (bounds-of-thing-at-point
-                                   'sexp))))))))
+                         (flymake-transient-keys-check-transient-at-point)))
+                  (flymake-transient-keys-move-with 'backward-up-list))))
+    result))
 
 (defun flymake-transient-keys-make-diagnostic (problems report-fn)
   "Make flymake diagnostic from list of PROBLEMS and call REPORT-FN directly."
-  (cl-loop for (line col type message) in
-           problems
-           for (beg . end) = (flymake-diag-region (current-buffer) line col)
-           collect
-           (flymake-make-diagnostic
-            (current-buffer)
-            beg end
-            (if (eq type 'warning) :warning :error)
-            message)
-           into diags
-           finally (funcall report-fn diags)))
+  (let ((buff (current-buffer)))
+    (funcall report-fn (mapcar
+                        (lambda (it)
+                          (flymake-make-diagnostic buff
+                                                   (car it)
+                                                   (cdr it)
+                                                   :error
+                                                   "Duplicated key"))
+                        problems))))
 
 (defun flymake-transient-keys-check-current (report-fn &rest _args)
-  "A Flymake backend for checking duplicated keys in transient.
-Use `flymake-transient-keys' to add this to `flymake-diagnostic-functions'.
-Calls REPORT-FN directly."
+  "Check duplicated keys for transient at point and call REPORT-FN.
+Use `flymake-transient-keys-current' to add this to
+`flymake-diagnostic-functions'."
   (flymake-transient-keys-make-diagnostic
    (flymake-transient-keys-check-current-transient)
    report-fn))
 
 (defun flymake-transient-keys-check (report-fn &rest _args)
-  "A Flymake backend for checking duplicated keys in transient.
+  "Check whole buffer for duplicated keys in `define-transient-prefix' forms.
 Use `flymake-transient-keys' to add this to `flymake-diagnostic-functions'.
 Calls REPORT-FN directly."
   (flymake-transient-keys-make-diagnostic (flymake-transient-keys-search-dups)
@@ -301,19 +302,22 @@ Calls REPORT-FN directly."
 
 ;;;###autoload
 (defun flymake-transient-keys-current ()
-  "Add `flymake-transient-keys-check' to flymake diagnostic and run flymake."
+  "Check `define-transient-prefix' form at point for duplicated keys.
+Add `flymake-transient-keys-check' to flymake diagnostic and run flymake."
   (interactive)
-  (remove-hook 'flymake-diagnostic-functions #'flymake-transient-keys-check t)
+  (require 'flymake)
   (add-hook 'flymake-diagnostic-functions
             #'flymake-transient-keys-check-current nil t)
-  (flymake-mode))
+  (flymake-start))
 
 ;;;###autoload
 (defun flymake-transient-keys ()
-  "Add `flymake-transient-keys-check' to flymake diagnostic and run flymake."
+  "Check whole buffer for duplicated keys in `define-transient-prefix' forms.
+Add `flymake-transient-keys-check' to flymake diagnostic and run flymake."
   (interactive)
+  (require 'flymake)
   (add-hook 'flymake-diagnostic-functions #'flymake-transient-keys-check nil t)
-  (flymake-mode))
+  (flymake-start))
 
 (provide 'flymake-transient-keys)
 ;;; flymake-transient-keys.el ends here
