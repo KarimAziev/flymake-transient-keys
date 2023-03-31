@@ -147,18 +147,17 @@ Arguments BOUND, NOERROR, COUNT has the same meaning as `re-search-forward'."
          (signal (car err)
                  (cdr err)))))))
 
-(defun flymake-transient-keys-lint-re-search-backward (regexp &optional
-                                                     bound noerror count)
+(defun flymake-transient-keys-lint-re-search-backward (regexp &optional bound
+                                                              noerror count)
   "Search backward from point for REGEXP ignoring elisp comments and strings.
 Arguments BOUND, NOERROR, COUNT has the same meaning as `re-search-forward'."
   (flymake-transient-keys-lint-re-search-forward regexp bound noerror
-                                        (if count
-                                            (- count) -1)))
-
+                                                 (if count
+                                                     (- count) -1)))
 
 (defun flymake-transient-keys-find-dups-keys (lists)
   "Return filtered LISTS with duplicated keys."
-  (setq lists (mapcar #'car lists))
+  (setq lists (mapcar 'car lists))
   (let ((dups)
         (uniq-keys)
         (key))
