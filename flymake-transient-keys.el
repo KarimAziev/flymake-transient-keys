@@ -209,8 +209,10 @@ ACC is used for inner purposes."
          (symbolp (nth 1 sexp)))
     (let ((items (seq-take-while
                   #'vectorp
-                  (reverse
-                   sexp))))
+                  (seq-drop-while (lambda (it)
+                                    (not (vectorp it)))
+                                  (reverse
+                                   sexp)))))
       (seq-filter
        (lambda (it)
          (stringp (car it)))
