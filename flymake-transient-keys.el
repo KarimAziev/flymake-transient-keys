@@ -157,25 +157,32 @@ Arguments BOUND, NOERROR, COUNT has the same meaning as `re-search-forward'."
 
 (defun flymake-transient-keys-find-dups-keys (lists)
   "Return filtered LISTS with duplicated keys."
-  (setq lists (mapcar 'car lists))
   (let ((dups)
         (uniq-keys)
-        (key))
+        (key)
+        (rets (seq-filter (apply-partially #'string= "RET") lists))
+        (tabs (seq-filter (apply-partially #'string= "TAB") lists)))
+    (when (or rets tabs)
+      (setq lists (seq-remove (lambda (it)
+                                (or (string= it "RET")
+                                    (string= it "TAB")))
+                              lists)))
     (while (setq key (pop lists))
       (let ((common-pref))
         (cond ((member key lists)
                (setq dups (push key dups))
                (setq lists (remove key lists)))
-              ((setq common-pref (unless (or (string-prefix-p "M-" key)
-                                             (string-prefix-p "C-" key))
-                                   (or (seq-filter
-                                        (apply-partially #'string-prefix-p
-                                                         key)
-                                        lists)
-                                       (seq-filter
-                                        (apply-partially #'string-prefix-p
-                                                         key)
-                                        uniq-keys))))
+              ((setq common-pref
+                     (unless (or (string-prefix-p "M-" key)
+                                 (string-prefix-p "C-" key))
+                       (or (seq-filter
+                            (apply-partially #'string-prefix-p
+                                             key)
+                            lists)
+                           (seq-filter
+                            (apply-partially #'string-prefix-p
+                                             key)
+                            uniq-keys))))
                (when (or (string= key "M")
                          (string= key "C"))
                  (setq common-pref (seq-remove
@@ -187,6 +194,10 @@ Arguments BOUND, NOERROR, COUNT has the same meaning as `re-search-forward'."
                  (setq dups (nconc dups common-pref))
                  (setq dups (push key dups))))
               (t (push key uniq-keys)))))
+    (when (> (length rets) 1)
+      (setq dups (nconc dups rets)))
+    (when (> (length tabs) 1)
+      (setq dups (nconc dups tabs)))
     dups))
 
 (defun flymake-transient-keys-lint-vectors-to-list (vect &optional acc)
@@ -256,8 +267,8 @@ ACC is used for inner purposes."
 (defun flymake-transient-keys-check-transient-at-point ()
   "Check current buffer for duplicate keys in transient prefixes."
   (when-let* ((keys (flymake-transient-keys-find-dups-keys
-                     (flymake-transient-keys-parse-sexp
-                      (sexp-at-point))))
+                     (mapcar #'car (flymake-transient-keys-parse-sexp
+                                    (sexp-at-point)))))
               (end (save-excursion
                      (forward-sexp 1)
                      (point))))
