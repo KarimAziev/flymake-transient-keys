@@ -4,7 +4,7 @@
 
 ;; Author: Karim Aziiev <karim.aziiev@gmail.com>
 ;; URL: https://github.com/KarimAziev/flymake-transient-keys
-;; Version: 0.2.0
+;; Version: 0.3.0
 ;; Keywords: lisp
 ;; Package-Requires: ((emacs "26.1") (flymake "1.2.2"))
 
