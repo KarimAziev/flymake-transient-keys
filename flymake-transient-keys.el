@@ -48,14 +48,14 @@
 Return new position if changed, nil otherwise."
   (unless n (setq n 1))
   (with-syntax-table emacs-lisp-mode-syntax-table
-    (when-let ((str-start (nth 8 (syntax-ppss (point)))))
+    (when-let* ((str-start (nth 8 (syntax-ppss (point)))))
       (goto-char str-start))
     (let ((init-pos (point))
           (pos)
           (count (if (> n 0) n (- n))))
       (while
           (and (not (= count 0))
-               (when-let ((end (ignore-errors
+               (when-let* ((end (ignore-errors
                                  (funcall fn (if
                                                  (> n 0) 1
                                                -1))
@@ -244,7 +244,7 @@ ACC is used for inner purposes."
               "\\_<\\(transient-define-prefix\\)\\_>"
               nil t 1)
         (ignore-errors (backward-up-list 1))
-        (when-let ((dups
+        (when-let* ((dups
                     (flymake-transient-keys-check-transient-at-point)))
           (setq problems (nconc problems
                                 dups))))
