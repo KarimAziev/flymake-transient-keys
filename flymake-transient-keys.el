@@ -235,7 +235,7 @@ ACC is used for inner purposes."
                    items '())))))
 
 (defun flymake-transient-keys-search-dups ()
-  "Check current buffer for duplicate keys in transient prefixes."
+  "Identify duplicate keys in transient prefixes within the buffer."
   (save-excursion
     (goto-char (point-max))
     (let ((case-fold-search nil)
@@ -265,7 +265,7 @@ ACC is used for inner purposes."
     problems))
 
 (defun flymake-transient-keys-check-transient-at-point ()
-  "Check current buffer for duplicate keys in transient prefixes."
+  "Check for duplicate keys in a transient command at point."
   (when-let* ((keys (flymake-transient-keys-find-dups-keys
                      (mapcar #'car (flymake-transient-keys-parse-sexp
                                     (sexp-at-point)))))
@@ -276,7 +276,7 @@ ACC is used for inner purposes."
                                           end)))
 
 (defun flymake-transient-keys-check-current-transient ()
-  "Check current buffer for duplicate keys in transient prefixes."
+  "Check for duplicate keys in a transient command at the current point."
   (let ((result))
     (save-excursion
       (while (and (not
